@@ -305,6 +305,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Request Logging Middleware
+app.use((req, res, next) => {
+  const time = new Date().toLocaleTimeString();
+  console.log(`[${time}] ${req.method} ${req.url}`);
+  if (req.method === 'POST') {
+    console.log(`[${time}] Body:`, req.body);
+  }
+  next();
+});
+
+// Root Health Check Route
+app.get('/', (req, res) => {
+  res.send('Blood Warriors ARIA Backend API is up and running! 🩸🚀');
+});
+
 // =============================================
 // BLOOD COMPATIBILITY MAP
 // =============================================
