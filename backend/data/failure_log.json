@@ -1,0 +1,12 @@
+{
+  "failures": [
+    { "donor_id": "donor_03", "type": "no_response", "time_of_day": "morning", "day_of_week": "Tuesday", "segment": "experienced", "timestamp": "2026-05-10T09:30:00Z" },
+    { "donor_id": "donor_06", "type": "cancelled", "time_of_day": "afternoon", "day_of_week": "Monday", "segment": "new", "timestamp": "2026-05-12T14:00:00Z" },
+    { "donor_id": "donor_10", "type": "no_response", "time_of_day": "evening", "day_of_week": "Friday", "segment": "new", "timestamp": "2026-05-15T18:30:00Z" },
+    { "donor_id": "donor_11", "type": "cancelled", "time_of_day": "morning", "day_of_week": "Tuesday", "segment": "experienced", "timestamp": "2026-05-18T10:00:00Z" },
+    { "donor_id": "donor_06", "type": "no_response", "time_of_day": "morning", "day_of_week": "Wednesday", "segment": "new", "timestamp": "2026-05-20T08:00:00Z" },
+    { "donor_id": "donor_10", "type": "cancelled", "time_of_day": "morning", "day_of_week": "Tuesday", "segment": "new", "timestamp": "2026-05-22T09:15:00Z" },
+    { "donor_id": "donor_03", "type": "no_response", "time_of_day": "evening", "day_of_week": "Thursday", "segment": "experienced", "timestamp": "2026-05-25T19:00:00Z" },
+    { "donor_id": "donor_11", "type": "no_response", "time_of_day": "afternoon", "day_of_week": "Monday", "segment": "experienced", "timestamp": "2026-05-28T15:30:00Z" }
+  ]
+}

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useToast } from './Toast';
+import { useToast } from '../components/Toast';
 import { chatMessages, getCurrentBridgePair, handleBridgeSkip, advanceBridgeCycle } from '../data/state';
 import { Send, HeartPulse, ClipboardList, ShieldAlert, Phone, User, History, FileText, AlertTriangle } from 'lucide-react';
+import Tooltip from '../components/Tooltip';
 
 export default function PatientView({ activeSection, patient, donors, onUpdate }) {
   const showToast = useToast();
@@ -10,7 +11,8 @@ export default function PatientView({ activeSection, patient, donors, onUpdate }
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
     name: patient.name,
-    contact: patient.contact,
+    contact: patient.contact || '',
+    preferredHospital: patient.preferredHospital || '',
     medicalHistory: patient.medicalHistory,
     medicalNotes: patient.medicalNotes || ''
   });
@@ -267,7 +269,7 @@ export default function PatientView({ activeSection, patient, donors, onUpdate }
               onClick={() => {
                 if (isEditingProfile) {
                   setProfileData({
-                    name: patient.name, contact: patient.contact, medicalHistory: patient.medicalHistory, medicalNotes: patient.medicalNotes || ''
+                    name: patient.name, contact: patient.contact || '', preferredHospital: patient.preferredHospital || '', medicalHistory: patient.medicalHistory, medicalNotes: patient.medicalNotes || ''
                   });
                 }
                 setIsEditingProfile(!isEditingProfile);
@@ -281,7 +283,7 @@ export default function PatientView({ activeSection, patient, donors, onUpdate }
             <div>
               <label className="!mt-0">Full Name</label>
               {isEditingProfile ? (
-                <input value={profileData.name} onChange={e => setProfileData({ ...profileData, name: e.target.value })} />
+                <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none" value={profileData.name} onChange={e => setProfileData({ ...profileData, name: e.target.value })} />
               ) : (
                 <div className="text-sm text-slate-800 font-medium py-2">{patient.name}</div>
               )}
@@ -290,16 +292,49 @@ export default function PatientView({ activeSection, patient, donors, onUpdate }
             <div>
               <label className="!mt-0">Contact Number</label>
               {isEditingProfile ? (
-                <input value={profileData.contact} onChange={e => setProfileData({ ...profileData, contact: e.target.value })} />
+                <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none" value={profileData.contact} onChange={e => setProfileData({ ...profileData, contact: e.target.value })} />
               ) : (
-                <div className="text-sm text-slate-800 font-medium py-2">{patient.contact}</div>
+                <div className="text-sm text-slate-800 font-medium py-2">{patient.contact || 'Not Provided'}</div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="!mt-0 flex items-center gap-1">Blood Group <Tooltip text="Immutable field." /></label>
+                <div className="text-sm font-bold text-rose-600 bg-rose-50 inline-block px-3 py-1.5 rounded mt-2 cursor-not-allowed">{patient.bloodGroup}</div>
+              </div>
+              <div>
+                <label className="!mt-0 flex items-center gap-1">Gender <Tooltip text="Immutable field." /></label>
+                <div className="text-sm text-slate-500 bg-slate-50 inline-block px-3 py-1.5 rounded mt-2 border border-slate-200 cursor-not-allowed">{patient.gender || 'Not Specified'}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="!mt-0 flex items-center gap-1">Age <Tooltip text="Immutable field." /></label>
+                <div className="text-sm text-slate-500 bg-slate-50 inline-block px-3 py-1.5 rounded mt-2 border border-slate-200 cursor-not-allowed">{patient.age || 'Not Specified'}</div>
+              </div>
+              <div>
+                <label className="!mt-0 flex items-center gap-1">Emergency Mode <Tooltip text="Controlled entirely by the AI. Only active when bridge drops below 4 donors." /></label>
+                <div className={`text-sm font-bold inline-block px-3 py-1.5 rounded mt-2 border cursor-not-allowed ${patient.emergencyMode ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-teal-700 bg-teal-50 border-teal-200'}`}>
+                  {patient.emergencyMode ? 'CRITICAL RISK' : 'STABLE'}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="!mt-0">Preferred Hospital</label>
+              {isEditingProfile ? (
+                <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none" value={profileData.preferredHospital} onChange={e => setProfileData({ ...profileData, preferredHospital: e.target.value })} />
+              ) : (
+                <div className="text-sm text-slate-800 font-medium py-2">{patient.preferredHospital || 'Not Provided'}</div>
               )}
             </div>
 
             <div>
-              <label className="!mt-0">Medical History</label>
+              <label className="!mt-0">Medical History / Notes</label>
               {isEditingProfile ? (
-                <textarea rows="3" value={profileData.medicalHistory} onChange={e => setProfileData({ ...profileData, medicalHistory: e.target.value })} />
+                <textarea className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none" rows="3" value={profileData.medicalHistory} onChange={e => setProfileData({ ...profileData, medicalHistory: e.target.value })} />
               ) : (
                 <div className="text-sm text-slate-800 font-medium py-2 leading-relaxed">{patient.medicalHistory}</div>
               )}

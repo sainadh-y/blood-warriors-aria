@@ -1,7 +1,0 @@
-fastapi
-uvicorn[standard]
-pandas
-numpy
-python-dotenv
-boto3
-pydantic

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, Activity, Settings, LogOut, ChevronLeft, ChevronRight, Droplets, HeartPulse, Shield, FileText, Search, User, Award, List } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
-import Home from './components/Home';
-import CommunityView from './components/CommunityView';
-import PatientView from './components/PatientView';
-import DonorView from './components/DonorView';
+import Home from './pages/Home';
+import CommunityView from './pages/CommunityView';
+import PatientView from './pages/PatientView';
+import DonorView from './pages/DonorView';
 import { apiCall } from './data/api';
 
 function Sidebar({ role, activeSection, setActiveSection, isExpanded, setIsExpanded, onLogout }) {
@@ -39,7 +39,7 @@ function Sidebar({ role, activeSection, setActiveSection, isExpanded, setIsExpan
   const navItems = getNavItems();
 
   return (
-    <div 
+    <div
       className={`${isExpanded ? 'w-64' : 'w-20'} bg-white border-r border-slate-200 h-full flex flex-col transition-all duration-300 relative z-20`}
     >
       <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100">
@@ -53,12 +53,11 @@ function Sidebar({ role, activeSection, setActiveSection, isExpanded, setIsExpan
 
       <div className="flex-1 py-6 flex flex-col gap-2 px-3 overflow-y-auto">
         {navItems.map((item) => (
-          <button 
+          <button
             key={item.id}
             onClick={() => setActiveSection(item.id)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeSection === item.id ? 'bg-rose-50 text-rose-600' : 'text-slate-600 hover:bg-slate-50'
-            }`}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeSection === item.id ? 'bg-rose-50 text-rose-600' : 'text-slate-600 hover:bg-slate-50'
+              }`}
           >
             <item.icon size={20} className="flex-shrink-0" />
             {isExpanded && <span className="whitespace-nowrap">{item.name}</span>}
@@ -67,14 +66,14 @@ function Sidebar({ role, activeSection, setActiveSection, isExpanded, setIsExpan
       </div>
 
       <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
-        <button 
+        <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center justify-center gap-2 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
         >
           {isExpanded ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
         </button>
-        
-        <button 
+
+        <button
           onClick={onLogout}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-rose-600 transition-colors"
         >
@@ -87,7 +86,8 @@ function Sidebar({ role, activeSection, setActiveSection, isExpanded, setIsExpan
 }
 
 function AppContent() {
-  const [role, setRole] = useState(null); 
+  const [role, setRole] = useState(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState(null);
   const [activeSection, setActiveSection] = useState('');
   const [patients, setPatients] = useState([]);
   const [donors, setDonors] = useState([]);
@@ -120,35 +120,52 @@ function AppContent() {
     setDonors(prev => prev.map(d => d.id === updatedDonor.id ? updatedDonor : d));
   };
 
-  const handleRoleSelect = (r) => {
+  const handleRoleSelect = (r, specificId = null, specificName = null) => {
     setRole(r);
-    if (r === 'community') setActiveSection('ai-matching');
-    else setActiveSection('dashboard');
+    // Use the specific ID passed from the Sign In dropdown, or default to the first one
+    const mockDatasetId = specificId || (r === 'patient' ? (patients[0]?.id || null) : (r === 'donor' ? (donors[0]?.id || null) : null));
+    const finalName = specificName || `Demo ${r.charAt(0).toUpperCase() + r.slice(1)}`;
+
+    setAuthenticatedUser({
+      role: r,
+      dataset_id: mockDatasetId,
+      name: finalName
+    });
+
+    if (r === 'admin' || r === 'community') {
+      setActiveSection('ai-matching');
+      setRole('community');
+    } else {
+      setActiveSection('dashboard');
+    }
   };
 
   if (!role) {
-    return <Home onSelectRole={handleRoleSelect} />;
+    return <Home onSelectRole={handleRoleSelect} patients={patients} donors={donors} onNewDonor={(newD) => setDonors([...donors, newD])} />;
   }
+
+  const myPatient = role === 'patient' ? patients.find(p => p.id === authenticatedUser.dataset_id) || patients[0] : null;
+  const myDonor = role === 'donor' ? donors.find(d => d.id === authenticatedUser.dataset_id) || donors[0] : null;
 
   // Dashboard View with Sidebar Layout
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans">
-      <Sidebar 
-        role={role} 
+      <Sidebar
+        role={role}
         activeSection={activeSection}
         setActiveSection={setActiveSection}
-        isExpanded={sidebarExpanded} 
-        setIsExpanded={setSidebarExpanded} 
-        onLogout={() => setRole(null)} 
+        isExpanded={sidebarExpanded}
+        setIsExpanded={setSidebarExpanded}
+        onLogout={() => setRole(null)}
       />
-      
+
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center px-8 justify-between shrink-0 z-10">
           <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             {role === 'community' && <><Shield size={20} className="text-teal-600" /> Community Command Center</>}
-            {role === 'patient' && <><HeartPulse size={20} className="text-rose-600" /> Patient Portal — {patients.length > 0 ? patients[0].name : "Loading..."}</>}
-            {role === 'donor' && <><Droplets size={20} className="text-amber-500" /> Donor Hub — {donors.length > 0 ? donors[0].name : "Loading..."}</>}
+            {role === 'patient' && <><HeartPulse size={20} className="text-rose-600" /> Patient Portal — {authenticatedUser?.name || "Loading..."}</>}
+            {role === 'donor' && <><Droplets size={20} className="text-amber-500" /> Donor Hub — {authenticatedUser?.name || "Loading..."}</>}
           </h2>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-2 text-xs font-semibold bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full border border-emerald-100">
@@ -161,15 +178,15 @@ function AppContent() {
         {/* Main Content Area */}
         <div className="p-8 w-full max-w-7xl mx-auto overflow-y-auto flex-1">
           {loading ? (
-             <div className="h-full flex items-center justify-center flex-col gap-4 text-slate-400">
-               <div className="spinner w-12 h-12 border-4 border-t-teal-500 rounded-full animate-spin"></div>
-               <p>Syncing ARIA Dataset...</p>
-             </div>
+            <div className="h-full flex items-center justify-center flex-col gap-4 text-slate-400">
+              <div className="spinner w-12 h-12 border-4 border-t-teal-500 rounded-full animate-spin"></div>
+              <p>Syncing ARIA Dataset...</p>
+            </div>
           ) : (
             <>
-              {role === 'community' && <CommunityView activeSection={activeSection} patients={patients} donors={donors} />}
-              {role === 'patient' && patients.length > 0 && <PatientView activeSection={activeSection} patient={patients[0]} donors={donors} onUpdate={handleUpdatePatient} />}
-              {role === 'donor' && donors.length > 0 && <DonorView activeSection={activeSection} donor={donors[0]} patients={patients} onUpdate={handleUpdateDonor} />}
+              {role === 'community' && <CommunityView activeSection={activeSection} patients={patients} donors={donors} onPatientAdded={(newPat) => setPatients([newPat, ...patients])} />}
+              {role === 'patient' && myPatient && <PatientView activeSection={activeSection} patient={myPatient} donors={donors} onUpdate={handleUpdatePatient} />}
+              {role === 'donor' && myDonor && <DonorView activeSection={activeSection} donor={myDonor} patients={patients} onUpdate={handleUpdateDonor} />}
             </>
           )}
         </div>

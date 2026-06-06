@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiCall } from '../data/api';
 import { MOCK_FAILURE_LOG, recentRequests } from '../data/state';
-import { useToast } from './Toast';
+import { useToast } from '../components/Toast';
 
 export default function AdminMetrics() {
   const showToast = useToast();
