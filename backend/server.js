@@ -317,7 +317,7 @@ app.use((req, res, next) => {
 
 // Root Health Check Route
 app.get('/', (req, res) => {
-  res.send('Blood Warriors ARIA Backend API is up and running! 🩸🚀');
+  res.status(200).json({ status: 'ARIA backend is running', health: 'ok' });
 });
 
 // =============================================
@@ -860,14 +860,6 @@ app.get('/api/community', (req, res) => {
   res.json(accountsData.community);
 });
 
-// =============================================
-// START SERVER
-// =============================================
-app.listen(PORT, () => {
-  console.log(`[ARIA] Blood Warriors backend running on http://localhost:${PORT}`);
-  console.log(`[ARIA] Community: ${accountsData.community.name}`);
-  console.log(`[ARIA] Hospital: ${accountsData.community.hospital}`);
-});
 
 // =============================================
 // WHATSAPP WEBHOOKS
@@ -876,12 +868,12 @@ app.get('/api/webhook/whatsapp', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-
-  if (mode && token && mode === 'subscribe' && token === WHATSAPP_VERIFY_TOKEN) {
-    console.log('WEBHOOK_VERIFIED');
-    res.status(200).send(challenge);
+  
+  if (mode === 'subscribe' && token === 'ARIA_HACKATHON_TOKEN') {
+    console.log('WEBHOOK_VERIFIED');  // Log to console
+    res.status(200).send(challenge);   // Return challenge to Meta
   } else {
-    res.sendStatus(403);
+    res.status(403).send('Forbidden');
   }
 });
 
@@ -1034,4 +1026,13 @@ cron.schedule('* * * * *', async () => {
       }
     }
   }
+});
+
+// =============================================
+// START SERVER (MUST BE LAST — AFTER ALL ROUTES)
+// =============================================
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[ARIA] Server running on port ${PORT}`);
+  console.log(`[ARIA] Community: ${accountsData.community.name}`);
+  console.log(`[ARIA] Hospital: ${accountsData.community.hospital}`);
 });

@@ -3,7 +3,7 @@
 // Connects to the new JSON-based backend
 // =============================================
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = 'http://aria-backend-env.eba-k7fxg2qc.us-east-1.elasticbeanstalk.com';
 
 export async function apiCall(path, method = 'GET', body = null) {
   const opts = {
