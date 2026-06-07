@@ -339,7 +339,7 @@ const BLOOD_COMPATIBILITY = {
 // =============================================
 app.post('/api/signup/donor', (req, res) => {
   const { name, email, password, bloodGroup, age, gender, location, lastDonation, consentBridge, phone } = req.body;
-  
+
   if (!name || !email || !password || !phone) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -868,7 +868,7 @@ app.get('/api/webhook/whatsapp', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-  
+
   if (mode === 'subscribe' && token === 'ARIA_HACKATHON_TOKEN') {
     console.log('WEBHOOK_VERIFIED');  // Log to console
     res.status(200).send(challenge);   // Return challenge to Meta
