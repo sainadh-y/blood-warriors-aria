@@ -66,7 +66,12 @@ export function calculateEmergencyMode(patientList) {
 export const chatMessages = [
   { bridgeId: 'pat_01-donor_01', from: 'Kiran Mehta', text: "I'm available for the August 5 transfusion. Confirmed!", timestamp: '2026-06-05 10:30', type: 'donor' },
   { bridgeId: 'pat_01-donor_01', from: "Ananya's Mother", text: "Thank you Kiran! Hospital confirmed at 4PM. Really appreciate your help.", timestamp: '2026-06-05 10:45', type: 'patient' },
-  { bridgeId: 'pat_01-donor_02', from: 'Arjun Nair', text: 'Ready for my rotation. Will be there.', timestamp: '2026-06-04 15:20', type: 'donor' }
+  { bridgeId: 'pat_01-donor_01', from: 'Kiran Mehta', text: "Perfect. I will arrive at the blood bank at 3:30PM to complete the paperwork.", timestamp: '2026-06-05 11:00', type: 'donor' },
+  { bridgeId: 'pat_01-donor_01', from: "Ananya's Mother", text: "How are you feeling? Did you remember to eat a good meal today?", timestamp: '2026-08-05 10:15', type: 'patient' },
+  { bridgeId: 'pat_01-donor_01', from: 'Kiran Mehta', text: "Yes ma'am, just had lunch and drank plenty of water. See you soon! How is Ananya?", timestamp: '2026-08-05 11:30', type: 'donor' },
+  { bridgeId: 'pat_01-donor_01', from: "Ananya's Mother", text: "She is doing okay, just a little tired today. Your donation means the world to us.", timestamp: '2026-08-05 11:45', type: 'patient' },
+  { bridgeId: 'pat_01-donor_02', from: 'Arjun Nair', text: 'Ready for my rotation next week. Will be there.', timestamp: '2026-06-04 15:20', type: 'donor' },
+  { bridgeId: 'pat_01-donor_02', from: "Ananya's Mother", text: 'Thank you Arjun! We will let you know the exact time once the doctor confirms.', timestamp: '2026-06-04 15:35', type: 'patient' }
 ];
 
 export const coupons = [

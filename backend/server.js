@@ -9,11 +9,22 @@ const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-be
 // =============================================
 // ENV CONFIGURATION
 // =============================================
-const WHATSAPP_TOKEN = process.env.META_WHATSAPP_TOKEN || '';
-const WHATSAPP_PHONE_ID = process.env.META_PHONE_NUMBER_ID || '';
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || '';
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || '';
+const TWILIO_API_KEY = process.env.TWILIO_API_KEY || '';
+const TWILIO_API_SECRET = process.env.TWILIO_API_SECRET || '';
+const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || '';
 const TEST_PHONE_NUMBER = process.env.TEST_PHONE_NUMBER || '916304230058';
 const WHATSAPP_VERIFY_TOKEN = 'ARIA_HACKATHON_TOKEN';
 const PORT = process.env.PORT || 3000;
+
+let twilioClient = null;
+const twilio = require('twilio');
+if (TWILIO_API_KEY && TWILIO_API_SECRET && TWILIO_ACCOUNT_SID) {
+  twilioClient = twilio(TWILIO_API_KEY, TWILIO_API_SECRET, { accountSid: TWILIO_ACCOUNT_SID });
+} else if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+  twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+}
 
 // =============================================
 // AWS BEDROCK CLIENT
@@ -115,8 +126,9 @@ function computeDonorScore(donor, patientLat, patientLng) {
 // =============================================
 function classifyIntentRuleBased(message) {
   const msg = message.toLowerCase().trim();
-  const acceptWords = ['confirm', 'yes', 'ok', 'ready', 'sure', 'available', 'coming', 'on my way', 'will do', 'accepted', 'i can'];
-  const cancelWords = ["can't", 'cancel', 'not available', 'no', 'busy', 'unable', 'sorry', 'decline', 'far away', "won't"];
+  const tokens = msg.split(/[\s,.'"!?-]+/);
+  const acceptWords = ['confirm', 'yes', 'ok', 'ready', 'sure', 'available', 'coming', 'on my way', 'will do', 'accepted', 'i can', 'yep', 'yeah'];
+  const cancelWords = ["can't", 'cancel', 'not available', 'no', 'busy', 'unable', 'sorry', 'decline', 'far away', "won't", 'nope', 'nah'];
   const pendingWords = ['maybe', 'not sure', 'will check', 'let me think', 'possibly', 'might'];
   const unavailablePatterns = [
     { pattern: /traveling in (\w+)/i, extract: (m) => ({ type: 'MARK_UNAVAILABLE', period: m[1] }) },
@@ -131,8 +143,12 @@ function classifyIntentRuleBased(message) {
   }
 
   // Count keyword matches
-  const acceptScore = acceptWords.filter(w => msg.includes(w)).length;
-  const cancelScore = cancelWords.filter(w => msg.includes(w)).length;
+  let acceptScore = acceptWords.filter(w => msg.includes(w)).length;
+  if (tokens.includes('y')) acceptScore += 1;
+
+  let cancelScore = cancelWords.filter(w => msg.includes(w)).length;
+  if (tokens.includes('n')) cancelScore += 1;
+
   const pendingScore = pendingWords.filter(w => msg.includes(w)).length;
 
   const maxScore = Math.max(acceptScore, cancelScore, pendingScore);
@@ -204,7 +220,7 @@ async function classifyResponse(message, donorName) {
 
 function getAutoResponse(intent, donorName) {
   switch (intent) {
-    case 'ACCEPT': return `Thank you so much, ${donorName}! 🙏 Your confirmation has been recorded. Please head to Apollo Hospital, Jubilee Hills. A patient is counting on you!`;
+    case 'ACCEPT': return `Thank you so much, ${donorName}! 🙏 Your confirmation has been recorded. The patient has been notified that you accepted and will arrive shortly! Please head to Apollo Hospital, Jubilee Hills.`;
     case 'CANCEL': return `We understand, ${donorName}. Thank you for letting us know. We'll find another donor. Take care! ❤️`;
     case 'PENDING': return `No worries, ${donorName}. Please let us know as soon as you can — a patient is waiting. We'll check back with you.`;
     case 'UNAVAILABLE': return `Thank you for informing us, ${donorName}. We've noted your unavailability and won't disturb you during that period.`;
@@ -272,28 +288,24 @@ async function invokeBedrockLLM(donorId, donorName) {
 // WHATSAPP MESSAGING
 // =============================================
 async function sendWhatsAppMessage(toPhone, messageText) {
-  if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
-    console.log("[WhatsApp] Skipped: Missing META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID in .env");
+  if (!twilioClient) {
+    console.log("[WhatsApp] Skipped: Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN in .env");
     return false;
   }
   try {
-    const url = `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`;
-    const data = {
-      messaging_product: "whatsapp",
-      to: toPhone,
-      type: "text",
-      text: { body: messageText }
-    };
-    const response = await axios.post(url, data, {
-      headers: {
-        'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
+    let formattedTo = toPhone;
+    if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
+    if (!formattedTo.startsWith('whatsapp:')) formattedTo = 'whatsapp:' + formattedTo;
+
+    const message = await twilioClient.messages.create({
+      body: messageText,
+      from: TWILIO_WHATSAPP_NUMBER,
+      to: formattedTo
     });
-    console.log("[WhatsApp] Message sent:", response.data);
+    console.log("[WhatsApp] Message sent:", message.sid);
     return true;
   } catch (error) {
-    console.error("[WhatsApp] Error:", error.response ? error.response.data : error.message);
+    console.error("[WhatsApp] Error:", error.message);
     return false;
   }
 }
@@ -304,6 +316,7 @@ async function sendWhatsAppMessage(toPhone, messageText) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Request Logging Middleware
 app.use((req, res, next) => {
@@ -862,81 +875,170 @@ app.get('/api/community', (req, res) => {
 
 
 // =============================================
-// WHATSAPP WEBHOOKS
+// ENDPOINT: Dashboard UI Action Notifications (WhatsApp)
 // =============================================
-app.get('/api/webhook/whatsapp', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
+app.post('/api/notify-action', async (req, res) => {
+  const { action, donorName, patientName, targetPhone, extraData } = req.body;
+  const target = targetPhone || process.env.TEST_PHONE_NUMBER || '+916304230058';
 
-  if (mode === 'subscribe' && token === 'ARIA_HACKATHON_TOKEN') {
-    console.log('WEBHOOK_VERIFIED');  // Log to console
-    res.status(200).send(challenge);   // Return challenge to Meta
-  } else {
-    res.status(403).send('Forbidden');
+  // Find donor to get their real stats
+  const donor = accountsData.donors.find(d => d.name === donorName) || { coins: 0, next_eligible_date: "90 days from today", reliability_score: 100 };
+  let newCoins = donor.coins;
+  if (action === 'ONE_TIME') newCoins += 90;
+  if (action === 'ACCEPT') newCoins += 50;
+  if (action === 'REDEEM_COUPON') newCoins -= (extraData?.cost || 50);
+  if (action === 'REDEEM_EVENT') newCoins -= (extraData?.cost || 100);
+
+  try {
+    if (action === 'ACCEPT') {
+      await sendWhatsAppMessage(target, `✅ Confirmed: You (${donorName}) have successfully accepted the bridge request for ${patientName}. You earned +50 ARIA Coins (New Balance: ${newCoins}). The ARIA platform has locked your cycle and mapped your cooldown dates to their transfusion schedule. Thank you! 🦸`);
+      await sendWhatsAppMessage(target, `🔔 To Patient: Great news! Your bridge request has been SECURED by ${donorName}. Their cooldown tracking has been officially synced with your hospital schedule.`);
+    } else if (action === 'DECLINE') {
+      await sendWhatsAppMessage(target, `❌ Confirmed: You (${donorName}) have declined the bridge request for ${patientName}. Your Reliability Score has slightly dropped to ${donor.reliability_score - 2}%. ARIA is now searching the general pool for the next best match.`);
+    } else if (action === 'ONE_TIME') {
+      await sendWhatsAppMessage(target, `🩸 Confirmed: You (${donorName}) have recorded a one-time donation. +90 ARIA Coins have been added to your wallet (New Balance: ${newCoins}). You are now strictly bound to a 90-day cooldown period and cannot donate again until exactly ${donor.next_eligible_date}.`);
+    } else if (action === 'REDEEM_COUPON') {
+      await sendWhatsAppMessage(target, `🎁 Reward Redeemed! You exchanged ${extraData?.cost} ARIA Coins. Your exclusive redemption code is: ${extraData?.code}. (New Coin Balance: ${newCoins}). This code expires in exactly 20 days!`);
+    } else if (action === 'REDEEM_EVENT') {
+      await sendWhatsAppMessage(target, `🎟️ Event Pass Granted! You used ${extraData?.cost} ARIA Coins to secure entry to: ${extraData?.eventName}. (New Coin Balance: ${newCoins}). Show this message at the venue!`);
+    }
+    res.json({ success: true, message: 'WhatsApp notifications sent.' });
+  } catch (e) {
+    console.error('Error sending WhatsApp notification:', e);
+    res.status(500).json({ success: false, message: 'Failed to send WhatsApp message.' });
   }
 });
 
-app.post('/api/webhook/whatsapp', async (req, res) => {
-  const body = req.body;
+// =============================================
+// WHATSAPP WEBHOOKS
+// =============================================
+app.post('/api/webhook/twilio', async (req, res) => {
+  try {
+    const from = req.body.From; // format: whatsapp:+1234567890
+    const body = req.body.Body;
 
-  if (body.object) {
-    try {
-      if (body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
-        const phone_number = body.entry[0].changes[0].value.messages[0].from;
-        const msg_body = body.entry[0].changes[0].value.messages[0].text.body;
+    if (from && body) {
+      const phone_number = from.replace('whatsapp:', '');
+      console.log(`[WhatsApp] Received from ${phone_number}: ${body}`);
 
-        console.log(`[WhatsApp] Received from ${phone_number}: ${msg_body}`);
-
-        // 1. Preference Extraction
-        const extractedPrefs = extractPreferences(msg_body);
-        if (extractedPrefs) {
-          console.log(`[NLP] Preferences extracted:`, extractedPrefs);
-        }
-
-        // 2. Check pending dispatches
-        const dispatches = loadPendingDispatches();
-        const normalizedPhone = phone_number.replace('+', '');
-        const possibleKeys = Object.keys(dispatches).filter(k => k.replace('+', '') === normalizedPhone);
-
-        if (possibleKeys.length > 0) {
-          const key = possibleKeys[0];
-          const record = dispatches[key];
-
-          if (record.status === 'pending' || record.status === 'followed_up') {
-            // Two-tier classification
-            const classification = await classifyResponse(msg_body, record.donorName);
-            console.log(`[Classification] Tier ${classification.tier}: ${classification.intent}`);
-
-            await sendWhatsAppMessage(key, classification.response);
-
-            if (classification.intent === 'ACCEPT') {
-              record.status = 'accepted';
-            } else if (classification.intent === 'CANCEL') {
-              record.status = 'declined';
-            }
-
-            savePendingDispatches(dispatches);
-          }
-
-          // Update preferences on donor record
-          if (extractedPrefs) {
-            const donor = accountsData.donors.find(d => d.donor_id === record.donorId);
-            if (donor) {
-              Object.assign(donor, extractedPrefs);
-              saveJSON(ACCOUNTS_PATH, accountsData);
-              console.log(`[DB] Updated preferences for ${record.donorName}`);
-            }
-          }
-        }
+      // 1. Preference Extraction
+      const extractedPrefs = extractPreferences(body);
+      if (extractedPrefs) {
+        console.log(`[NLP] Preferences extracted:`, extractedPrefs);
       }
-    } catch (err) {
-      console.error('[Webhook] Error processing message:', err);
+
+      // 2. Check pending dispatches
+      const dispatches = loadPendingDispatches();
+      const normalizedPhone = phone_number.replace('+', '');
+      const possibleKeys = Object.keys(dispatches).filter(k => k.replace('+', '') === normalizedPhone);
+
+      if (possibleKeys.length > 0) {
+        const key = possibleKeys[0];
+        const record = dispatches[key];
+
+        if (record.status === 'pending' || record.status === 'followed_up') {
+          // Two-tier classification
+          const classification = await classifyResponse(body, record.donorName);
+          console.log(`[Classification] Tier ${classification.tier}: ${classification.intent}`);
+
+          await sendWhatsAppMessage(key, classification.response);
+
+          if (classification.intent === 'ACCEPT') {
+            record.status = 'accepted';
+          } else if (classification.intent === 'CANCEL') {
+            record.status = 'declined';
+          }
+
+          savePendingDispatches(dispatches);
+        }
+
+        // Update preferences on donor record
+        if (extractedPrefs) {
+          const donor = accountsData.donors.find(d => d.donor_id === record.donorId);
+          if (donor) {
+            Object.assign(donor, extractedPrefs);
+            saveJSON(ACCOUNTS_PATH, accountsData);
+            console.log(`[DB] Updated preferences for ${record.donorName}`);
+          }
+        }
+      } else {
+        console.log(`[WhatsApp] No pending dispatch for ${phone_number}. Sending fallback chatbot reply.`);
+        const msg = body.toLowerCase();
+        // Tokenize by removing all punctuation and splitting by whitespace
+        const tokens = msg.replace(/[^\w\s]/g, '').split(/\s+/);
+        
+        // Lookup donor by phone number
+        const donor = accountsData.donors.find(d => d.phone && d.phone.replace('+', '') === normalizedPhone);
+        
+        let reply = "Hello! I'm ARIA, your Blood Warriors AI assistant. You don't have any pending emergency dispatches right now. Thank you for your support! 🩸";
+        
+        // NLP Token Matching
+        if (tokens.includes("blood") || tokens.includes("need") || tokens.includes("emergency")) {
+          reply = "If you are in a medical emergency and need blood immediately, please register your request on the ARIA platform dashboard or ask your hospital to raise a request. We will immediately dispatch our matched donors! 🩸";
+        } else if (tokens.includes("status") || msg.includes("bridge status") || tokens.includes("donor")) {
+          const patient = accountsData.patients.find(p => p.phone && p.phone.replace('+', '') === normalizedPhone);
+          if (patient) {
+            reply = `Your bridge request is currently active. Your main donor and backup donor are on standby. Next transfusion: ${patient.next_expected_transfusion}. 🏥`;
+          } else if (donor) {
+            reply = `You are a registered donor. Thank you for being a Blood Warrior! 🦸`;
+          } else {
+            reply = `We couldn't find your patient profile. Please contact Dr. Rajesh Kumar at admin@bloodwarriors.org for assistance.`;
+          }
+        } else if (tokens.includes("transfusion")) {
+          const patient = accountsData.patients.find(p => p.phone && p.phone.replace('+', '') === normalizedPhone);
+          reply = patient 
+            ? `Your next expected transfusion date is ${patient.next_expected_transfusion}. Please coordinate with your hospital! 📅` 
+            : `Are you asking about a patient's transfusion? As a donor, your app will notify you when you are needed!`;
+        } else if (tokens.includes("prepare") || tokens.includes("eat") || tokens.includes("drink")) {
+          reply = "Before your donation, make sure to drink plenty of water (at least 500ml), eat a healthy iron-rich meal, and avoid heavy lifting! 💧🍲";
+        } else if (tokens.includes("location") || tokens.includes("hospital") || tokens.includes("where") || tokens.includes("address")) {
+          reply = "Donations are processed at Apollo Hospital, Jubilee Hills. Please head to the Blood Bank section on the ground floor. 🏥📍";
+        } else if (tokens.includes("admin") || tokens.includes("support") || tokens.includes("help") || tokens.includes("contact")) {
+          reply = "You can contact your community admin, Dr. Rajesh Kumar, at 919848218531 or admin@bloodwarriors.org. 📞";
+        } else if (tokens.includes("when") || tokens.includes("eligible") || tokens.includes("next")) {
+          reply = donor && donor.next_eligible_date
+            ? `Your next eligible donation date is ${donor.next_eligible_date}. We'd love to have you donate again! 🩸`
+            : "You are eligible to donate right now! 🩸";
+        } else if (tokens.includes("coin") || tokens.includes("coins") || tokens.includes("reward") || tokens.includes("balance") || tokens.includes("stats")) {
+          reply = donor
+            ? `You currently have ${donor.coins} ARIA Coins! You can redeem them for health checkups, event entries, and partner discounts. 🪙`
+            : "You earn ARIA Coins for every successful donation and bridge bonus! 🪙";
+        } else if (tokens.includes("who") || tokens.includes("bridge") || tokens.includes("patient")) {
+          if (donor && donor.bridge_patient_id) {
+            const patient = accountsData.patients.find(p => p.patient_id === donor.bridge_patient_id);
+            reply = patient
+              ? `You are bridged to ${patient.name} (${patient.blood_type}) at ${patient.hospital}. Next transfusion: ${patient.next_expected_transfusion}. Your dedication saves their life! 💪`
+              : "You are assigned to a patient. Contact your community admin for details.";
+          } else {
+            reply = "You are not currently assigned to any patient. Consider pledging as a bridge donor!";
+          }
+        } else if (tokens.includes("thalassemia") || tokens.includes("disease") || tokens.includes("condition")) {
+          reply = "Thalassemia is a genetic blood disorder that prevents the body from producing enough hemoglobin. Patients require lifelong, regular blood transfusions every 2 to 4 weeks simply to survive. Your donations ensure they never have to fight to find blood. 🩸";
+        } else if (tokens.includes("volunteer")) {
+          reply = "Volunteers are the heroes of our mission! Any healthy adult between 18-65 years weighing over 45kg can volunteer to donate blood and save lives. 🦸";
+        } else if (tokens.includes("cooldown") || tokens.includes("rest") || tokens.includes("wait")) {
+          reply = "To protect your health, there is a mandatory rest period between blood donations: 90 days for men and 120 days for women. ARIA automatically tracks this to keep you safe! ⏳";
+        } else if (tokens.includes("donation") || tokens.includes("donations") || (tokens.includes("how") && tokens.includes("many"))) {
+          reply = donor
+            ? `You have made ${donor.total_donations} donations so far. That's incredible — you've helped save approximately ${donor.total_donations * 3} lives! 🌟`
+            : "Every donation you make can save up to 3 lives! You are a hero! 🌟";
+        } else if (tokens.includes("hello") || tokens.includes("hi") || tokens.includes("hey")) {
+          reply = donor
+            ? `Hello ${donor.name}! I'm ARIA, your Blood Warriors AI assistant. Your blood group is ${donor.blood_type} and you have ${donor.total_donations} past donations. 👋 How can I help you today?`
+            : "Hello! I'm ARIA, your Blood Warriors AI assistant. 👋 How can I help you today?";
+        }
+        
+        await sendWhatsAppMessage(phone_number, reply);
+      }
     }
-    res.sendStatus(200);
-  } else {
-    res.sendStatus(404);
+  } catch (err) {
+    console.error('[Webhook] Error processing message:', err);
   }
+  
+  // Respond to Twilio with an empty TwiML or 200 OK
+  const twilio = require('twilio');
+  const twiml = new twilio.twiml.MessagingResponse();
+  res.type('text/xml').send(twiml.toString());
 });
 
 // =============================================
@@ -989,7 +1091,7 @@ cron.schedule('* * * * *', async () => {
             const msg = `🩸 Reminder from ARIA: Hi ${donor.name}, a patient needs your blood donation on ${request.transfusion_date} at Apollo Hospital. You are the ${slot.role.toUpperCase()} donor. Please reply YES to confirm or NO to decline.`;
             console.log(`[Reminder T-10] Sending to ${donor.name} (${slot.role})`);
             // Only send if WhatsApp is configured
-            if (WHATSAPP_TOKEN) {
+            if (twilioClient) {
               await sendWhatsAppMessage(TEST_PHONE_NUMBER, msg);
             }
             slot.reminder_sent_at = now.toISOString();

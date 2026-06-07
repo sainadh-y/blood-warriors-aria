@@ -63,6 +63,24 @@ export default function DonorView({ activeSection, donor, patients, onUpdate }) 
     setPrompts(prev => prev.filter(p => p.id !== prompt.id));
   };
 
+  const sendNotification = async (action, overridePatientName, extraData) => {
+    try {
+      await fetch('http://localhost:3000/api/notify-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          donorName: donor.name,
+          patientName: overridePatientName || 'Priya Sharma',
+          targetPhone: '+916304230058',
+          extraData
+        })
+      });
+    } catch(e) {
+      console.error('Failed to notify backend', e);
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       {/* =========================================
@@ -150,7 +168,10 @@ export default function DonorView({ activeSection, donor, patients, onUpdate }) 
                       </p>
                       <button 
                         className="w-full bg-rose-600 text-white font-bold py-3 rounded-lg hover:bg-rose-700 transition-colors shadow"
-                        onClick={handleRecordDonation}
+                        onClick={() => {
+                          handleRecordDonation();
+                          sendNotification('ONE_TIME');
+                        }}
                       >
                         RECORD ONE-TIME DONATION (+90 COINS)
                       </button>
@@ -176,12 +197,21 @@ export default function DonorView({ activeSection, donor, patients, onUpdate }) 
                         </div>
 
                         <div className="flex gap-2 w-full relative z-10">
-                          <button className="flex-1 bg-slate-700 text-white text-xs font-bold py-2.5 rounded-lg hover:bg-slate-600 transition-colors">
+                          <button 
+                            className="flex-1 bg-slate-700 text-white text-xs font-bold py-2.5 rounded-lg hover:bg-slate-600 transition-colors"
+                            onClick={() => {
+                              showToast('You have declined the request.', 'info');
+                              sendNotification('DECLINE');
+                            }}
+                          >
                             DECLINE
                           </button>
                           <button 
                             className="flex-1 bg-teal-500 text-slate-900 text-xs font-extrabold py-2.5 rounded-lg hover:bg-teal-400 transition-colors shadow-lg"
-                            onClick={() => showToast('Bridge request accepted! You have 15 days to form the bridge.', 'success')}
+                            onClick={() => {
+                              showToast('Bridge request accepted! You have 15 days to form the bridge.', 'success');
+                              sendNotification('ACCEPT');
+                            }}
                           >
                             ACCEPT REQUEST
                           </button>
@@ -411,7 +441,7 @@ export default function DonorView({ activeSection, donor, patients, onUpdate }) 
                       {isRedeemed ? (
                         <div className="mt-2 text-center">
                           <div className="bg-white border border-teal-200 rounded p-2 mb-2 font-mono text-teal-800 font-bold text-lg shadow-sm">
-                            ARIA-{c.id.toUpperCase()}-{(Math.random()*10000).toFixed(0)}
+                            {isRedeemed === true ? `ARIA-${c.id.toUpperCase()}-${(Math.random()*10000).toFixed(0)}` : isRedeemed}
                           </div>
                           <div className="text-[10px] font-bold text-rose-600">EXPIRES IN 20 DAYS</div>
                         </div>
@@ -420,9 +450,11 @@ export default function DonorView({ activeSection, donor, patients, onUpdate }) 
                           className="w-full border-2 border-amber-500 text-amber-600 font-bold py-2 rounded-lg hover:bg-amber-500 hover:text-white transition-colors"
                           onClick={() => {
                             if (donor.coins >= 50) {
-                              setRedeemedCodes(prev => ({...prev, [c.id]: true}));
+                              const code = `ARIA-${c.id.toUpperCase()}-${(Math.random()*10000).toFixed(0)}`;
+                              setRedeemedCodes(prev => ({...prev, [c.id]: code}));
                               onUpdate({...donor, coins: donor.coins - 50});
                               showToast(`Successfully redeemed! 50 coins deducted.`, 'success');
+                              sendNotification('REDEEM_COUPON', undefined, { code, cost: 50 });
                             } else {
                               showToast('Insufficient ARIA coins.', 'error');
                             }
@@ -473,6 +505,7 @@ export default function DonorView({ activeSection, donor, patients, onUpdate }) 
                               setEventPasses(prev => ({...prev, [e.id]: true}));
                               onUpdate({...donor, coins: donor.coins - 100});
                               showToast(`Event Pass granted! 100 coins deducted.`, 'success');
+                              sendNotification('REDEEM_EVENT', undefined, { eventName: e.name, cost: 100 });
                             } else {
                               showToast('Insufficient ARIA coins.', 'error');
                             }
